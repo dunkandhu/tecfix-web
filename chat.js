@@ -1,4 +1,4 @@
-// TecFix - Chat Widget con OpenAI
+// TecFix - Chat Widget con Google Gemini
 
 class ChatWidget {
   constructor() {

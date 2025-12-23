@@ -1,4 +1,4 @@
-// Netlify Function para integrar con OpenAI
+// Netlify Function para integrar con Google Gemini (Capa Gratuita)
 
 exports.handler = async (event, context) => {
   // Manejar CORS preflight
@@ -27,10 +27,10 @@ exports.handler = async (event, context) => {
 
   try {
     // Obtener la API key de las variables de entorno
-    const apiKey = process.env.OPENAI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
     
     if (!apiKey) {
-      console.error('OPENAI_API_KEY no está configurada');
+      console.error('GEMINI_API_KEY no está configurada');
       return {
         statusCode: 500,
         headers: {
@@ -38,7 +38,7 @@ exports.handler = async (event, context) => {
           'Access-Control-Allow-Origin': '*',
         },
         body: JSON.stringify({ 
-          error: 'OpenAI API key no configurada. Por favor, configura OPENAI_API_KEY en Netlify.' 
+          error: 'Google Gemini API key no configurada. Por favor, configura GEMINI_API_KEY en Netlify.' 
         }),
       };
     }
@@ -72,74 +72,95 @@ exports.handler = async (event, context) => {
       };
     }
 
-    // Preparar el historial de conversación para OpenAI
-    const messages = [
-      {
-        role: 'system',
-        content: 'Eres un asistente virtual amigable y profesional de TecFix, una empresa de servicios tecnológicos. Ayudas a los usuarios con información sobre automatización, desarrollo web, pruebas de software y soluciones tecnológicas. Responde de manera clara, concisa y en español. Si no sabes algo, admítelo honestamente.'
-      },
-      ...conversationHistory.map(msg => ({
-        role: msg.role,
-        content: msg.content
-      })),
-      {
-        role: 'user',
-        content: message
-      }
-    ];
+    // Preparar el historial de conversación para Gemini
+    // Gemini usa un formato diferente: contents con parts
+    const contents = [];
+    
+    // Agregar el contexto del sistema como primer mensaje
+    contents.push({
+      role: 'user',
+      parts: [{ text: 'Eres un asistente virtual amigable y profesional de TecFix, una empresa de servicios tecnológicos. Ayudas a los usuarios con información sobre automatización, desarrollo web, pruebas de software y soluciones tecnológicas. Responde de manera clara, concisa y en español. Si no sabes algo, admítelo honestamente.' }]
+    });
+    
+    contents.push({
+      role: 'model',
+      parts: [{ text: 'Entendido. Estoy listo para ayudar a los usuarios de TecFix con información sobre servicios tecnológicos.' }]
+    });
 
-    // Preparar la petición a OpenAI
+    // Agregar el historial de conversación
+    conversationHistory.forEach(msg => {
+      if (msg.role === 'user' || msg.role === 'model') {
+        contents.push({
+          role: msg.role === 'user' ? 'user' : 'model',
+          parts: [{ text: msg.content }]
+        });
+      }
+    });
+
+    // Agregar el mensaje actual del usuario
+    contents.push({
+      role: 'user',
+      parts: [{ text: message }]
+    });
+
+    // Preparar la petición a Gemini
+    // Usamos gemini-1.5-flash que es gratuito y rápido
     const requestBody = {
-      model: 'gpt-3.5-turbo', // Modelo gratuito o de bajo costo
-      messages: messages,
-      max_tokens: 500,
-      temperature: 0.7,
+      contents: contents,
+      generationConfig: {
+        temperature: 0.7,
+        topK: 40,
+        topP: 0.95,
+        maxOutputTokens: 1024,
+      },
     };
 
-    console.log('Enviando petición a OpenAI con', messages.length, 'mensajes');
+    console.log('Enviando petición a Gemini con', contents.length, 'mensajes');
 
-    // Llamar a la API de OpenAI
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    // Llamar a la API de Gemini (capa gratuita)
+    const model = 'gemini-1.5-flash'; // Modelo gratuito y rápido
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    
+    const response = await fetch(url, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
       },
       body: JSON.stringify(requestBody),
     });
 
-    console.log('Respuesta de OpenAI - Status:', response.status);
+    console.log('Respuesta de Gemini - Status:', response.status);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      console.error('Error de OpenAI:', errorData);
+      console.error('Error de Gemini:', errorData);
       
       // Mensajes de error más específicos según el tipo
-      let errorMessage = 'Error al comunicarse con OpenAI';
-      let userMessage = 'Error al comunicarse con OpenAI. Por favor, intenta de nuevo.';
+      let errorMessage = 'Error al comunicarse con Google Gemini';
+      let userMessage = 'Error al comunicarse con Google Gemini. Por favor, intenta de nuevo.';
       
       if (errorData.error) {
-        const openaiError = errorData.error;
+        const geminiError = errorData.error;
         
         // Error de autenticación
-        if (openaiError.code === 'invalid_api_key' || openaiError.message?.includes('api key')) {
+        if (geminiError.status === 'UNAUTHENTICATED' || geminiError.message?.includes('API key')) {
           errorMessage = 'API key inválida o expirada';
-          userMessage = '⚠️ La API key de OpenAI no es válida. Por favor, verifica tu API key en Netlify.';
+          userMessage = '⚠️ La API key de Google Gemini no es válida. Por favor, verifica tu API key en Netlify.';
         }
-        // Error de créditos
-        else if (openaiError.code === 'insufficient_quota' || openaiError.message?.includes('quota')) {
-          errorMessage = 'Sin créditos disponibles';
-          userMessage = '⚠️ No tienes créditos disponibles en tu cuenta de OpenAI. Por favor, agrega fondos en https://platform.openai.com/account/billing';
+        // Error de cuota
+        else if (geminiError.status === 'RESOURCE_EXHAUSTED' || geminiError.message?.includes('quota')) {
+          errorMessage = 'Cuota excedida';
+          userMessage = '⚠️ Has excedido la cuota gratuita de Gemini. Por favor, espera un momento o verifica tu cuenta en Google AI Studio.';
         }
         // Error de rate limit
-        else if (openaiError.code === 'rate_limit_exceeded') {
+        else if (geminiError.status === 'RESOURCE_EXHAUSTED') {
           errorMessage = 'Límite de solicitudes excedido';
           userMessage = '⚠️ Has excedido el límite de solicitudes. Por favor, espera un momento e intenta de nuevo.';
         }
         // Otros errores
         else {
-          errorMessage = openaiError.message || errorMessage;
-          userMessage = `⚠️ Error: ${openaiError.message || 'Error desconocido'}. Revisa los logs de Netlify para más detalles.`;
+          errorMessage = geminiError.message || errorMessage;
+          userMessage = `⚠️ Error: ${geminiError.message || 'Error desconocido'}. Revisa los logs de Netlify para más detalles.`;
         }
       }
       
@@ -160,16 +181,18 @@ exports.handler = async (event, context) => {
     const data = await response.json();
     
     // Extraer la respuesta del asistente
-    const assistantMessage = data.choices?.[0]?.message?.content;
+    // Gemini devuelve la respuesta en candidates[0].content.parts[0].text
+    const assistantMessage = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
     if (!assistantMessage) {
+      console.error('Estructura de respuesta inesperada:', JSON.stringify(data, null, 2));
       return {
         statusCode: 500,
         headers: {
           'Content-Type': 'application/json',
           'Access-Control-Allow-Origin': '*',
         },
-        body: JSON.stringify({ error: 'No se recibió respuesta de OpenAI' }),
+        body: JSON.stringify({ error: 'No se recibió respuesta de Gemini' }),
       };
     }
 
@@ -178,7 +201,7 @@ exports.handler = async (event, context) => {
       statusCode: 200,
       headers: {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*', // Permitir CORS
+        'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type',
         'Access-Control-Allow-Methods': 'POST, OPTIONS',
       },
@@ -204,4 +227,3 @@ exports.handler = async (event, context) => {
     };
   }
 };
-
