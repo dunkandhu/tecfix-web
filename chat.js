@@ -129,25 +129,55 @@ class ChatWidget {
         }),
       });
 
+      // Remover indicador de escritura antes de procesar respuesta
+      this.removeTypingIndicator();
+
       if (!response.ok) {
-        throw new Error(`Error: ${response.status}`);
+        // Intentar obtener el mensaje de error del servidor
+        let errorMessage = `Error ${response.status}`;
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.error || errorData.message || errorMessage;
+          console.error('Error del servidor:', errorData);
+        } catch (e) {
+          console.error('Error al parsear respuesta de error:', e);
+        }
+
+        // Mensajes de error más específicos
+        if (response.status === 500) {
+          if (errorMessage.includes('API key')) {
+            this.addBotMessage('⚠️ La API key de OpenAI no está configurada. Por favor, configura OPENAI_API_KEY en Netlify y redespliega el sitio.');
+          } else {
+            this.addBotMessage('Lo siento, hubo un error en el servidor. Por favor, verifica la configuración en Netlify.');
+          }
+        } else if (response.status === 400) {
+          this.addBotMessage('Por favor, envía un mensaje válido.');
+        } else {
+          this.addBotMessage(`Error: ${errorMessage}. Por favor, intenta de nuevo.`);
+        }
+        return;
       }
 
       const data = await response.json();
       
-      // Remover indicador de escritura
-      this.removeTypingIndicator();
-
       // Agregar respuesta del bot
       if (data.response) {
         this.addBotMessage(data.response);
+      } else if (data.error) {
+        this.addBotMessage(`Error: ${data.error}`);
       } else {
-        throw new Error('No se recibió respuesta');
+        throw new Error('No se recibió respuesta válida');
       }
     } catch (error) {
       console.error('Error al enviar mensaje:', error);
       this.removeTypingIndicator();
-      this.addBotMessage('Lo siento, hubo un error al procesar tu mensaje. Por favor, intenta de nuevo más tarde.');
+      
+      // Mensajes de error más específicos según el tipo
+      if (error.message.includes('Failed to fetch') || error.message.includes('NetworkError')) {
+        this.addBotMessage('⚠️ No se pudo conectar con el servidor. Verifica que la función de Netlify esté desplegada correctamente.');
+      } else {
+        this.addBotMessage(`Error: ${error.message}. Por favor, intenta de nuevo más tarde.`);
+      }
     } finally {
       // Rehabilitar input
       this.setInputEnabled(true);
