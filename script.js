@@ -159,6 +159,70 @@ function initTechCursor() {
   });
 }
 
+// Animación de contadores en estadísticas
+function animateCounters() {
+  const counters = document.querySelectorAll('.stat-number');
+  
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
+      if (entry.isIntersecting && !entry.target.classList.contains('animated')) {
+        entry.target.classList.add('animated');
+        const target = parseInt(entry.target.getAttribute('data-target'));
+        animateValue(entry.target, 0, target, 2000);
+      }
+    });
+  }, {
+    threshold: 0.5
+  });
+
+  counters.forEach(counter => {
+    observer.observe(counter);
+  });
+}
+
+function animateValue(element, start, end, duration) {
+  let startTimestamp = null;
+  const step = (timestamp) => {
+    if (!startTimestamp) startTimestamp = timestamp;
+    const progress = Math.min((timestamp - startTimestamp) / duration, 1);
+    const current = Math.floor(progress * (end - start) + start);
+    element.textContent = current;
+    if (progress < 1) {
+      window.requestAnimationFrame(step);
+    } else {
+      element.textContent = end;
+    }
+  };
+  window.requestAnimationFrame(step);
+}
+
+// FAQ interactivo
+function initFAQ() {
+  const faqItems = document.querySelectorAll('.faq-item');
+  
+  faqItems.forEach(item => {
+    const question = item.querySelector('.faq-question');
+    
+    question.addEventListener('click', () => {
+      const isActive = item.classList.contains('active');
+      
+      // Cerrar todos los demás items
+      faqItems.forEach(otherItem => {
+        if (otherItem !== item) {
+          otherItem.classList.remove('active');
+        }
+      });
+      
+      // Toggle del item actual
+      if (isActive) {
+        item.classList.remove('active');
+      } else {
+        item.classList.add('active');
+      }
+    });
+  });
+}
+
 // Inicializar todo cuando el DOM esté listo
 document.addEventListener('DOMContentLoaded', () => {
   createParticles();
@@ -168,6 +232,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initLogoGlow();
   initSmoothScroll();
   initTechCursor();
+  animateCounters();
+  initFAQ();
 });
 
 // Recrear partículas al redimensionar (opcional)
