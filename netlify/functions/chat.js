@@ -117,16 +117,37 @@ exports.handler = async (event, context) => {
 
     console.log('Enviando petición a Gemini con', contents.length, 'mensajes');
 
-    // Llamar a la API de Gemini (capa gratuita)
-    // Intentamos con diferentes modelos en orden de preferencia
-    const modelsToTry = [
-      'gemini-1.5-flash',  // Modelo más rápido y gratuito
-      'gemini-pro',        // Modelo estándar gratuito
-      'gemini-1.5-pro',    // Modelo más potente (puede tener límites)
-    ];
+    // Primero, intentar listar los modelos disponibles para esta cuenta
+    let availableModels = [];
+    try {
+      const listUrl = `https://generativelanguage.googleapis.com/v1/models?key=${apiKey}`;
+      const listResponse = await fetch(listUrl);
+      
+      if (listResponse.ok) {
+        const listData = await listResponse.json();
+        availableModels = (listData.models || [])
+          .filter(m => m.supportedGenerationMethods?.includes('generateContent'))
+          .map(m => m.name.replace('models/', ''));
+        console.log('Modelos disponibles:', availableModels);
+      }
+    } catch (error) {
+      console.log('No se pudo listar modelos, usando lista por defecto');
+    }
+
+    // Lista de modelos a intentar (prioridad: los que soportan generateContent)
+    const modelsToTry = availableModels.length > 0 
+      ? availableModels 
+      : [
+          'gemini-1.5-flash',
+          'gemini-1.5-flash-8b',
+          'gemini-pro',
+          'gemini-1.5-pro',
+          'gemini-2.0-flash-exp',
+        ];
 
     let response;
     let lastError;
+    let workingModel = null;
     
     // Intentar con cada modelo hasta que uno funcione
     for (const model of modelsToTry) {
@@ -146,7 +167,8 @@ exports.handler = async (event, context) => {
 
         // Si la respuesta es exitosa, usar este modelo
         if (response.ok) {
-          console.log(`Modelo ${model} funcionó correctamente`);
+          console.log(`✅ Modelo ${model} funcionó correctamente`);
+          workingModel = model;
           break;
         }
 
@@ -154,11 +176,14 @@ exports.handler = async (event, context) => {
         if (response.status === 404) {
           const errorData = await response.json().catch(() => ({}));
           lastError = errorData;
-          console.log(`Modelo ${model} no disponible, probando siguiente...`);
+          console.log(`❌ Modelo ${model} no disponible (404), probando siguiente...`);
           continue;
         }
 
         // Si es otro error, detener y manejar
+        const errorData = await response.json().catch(() => ({}));
+        lastError = errorData;
+        console.log(`❌ Error con modelo ${model}:`, errorData);
         break;
       } catch (error) {
         console.error(`Error al intentar con modelo ${model}:`, error);
@@ -168,9 +193,10 @@ exports.handler = async (event, context) => {
     }
 
     // Si no se obtuvo respuesta exitosa de ningún modelo
-    if (!response || !response.ok) {
+    if (!response || !response.ok || !workingModel) {
       const errorData = await response?.json().catch(() => lastError || {});
-      console.error('Error de Gemini - ningún modelo funcionó:', errorData);
+      console.error('❌ Error de Gemini - ningún modelo funcionó. Último error:', errorData);
+      console.error('Modelos intentados:', modelsToTry);
       
       return {
         statusCode: response?.status || 500,
@@ -180,8 +206,12 @@ exports.handler = async (event, context) => {
         },
         body: JSON.stringify({ 
           error: 'No se pudo encontrar un modelo disponible',
-          userMessage: '⚠️ Error: No se encontró un modelo de Gemini disponible. Por favor, verifica tu API key y que tengas acceso a los modelos gratuitos. Revisa los logs de Netlify para más detalles.',
-          details: errorData 
+          userMessage: '⚠️ Lo siento, no se pudo conectar con el asistente. Por favor, contáctanos directamente por WhatsApp usando el botón de contacto.',
+          details: {
+            ...errorData,
+            modelsAttempted: modelsToTry,
+            suggestion: 'Verifica que tu API key tenga acceso a modelos gratuitos en Google AI Studio'
+          }
         }),
       };
     }
