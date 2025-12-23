@@ -1,10 +1,26 @@
 // Netlify Function para integrar con OpenAI
 
 exports.handler = async (event, context) => {
+  // Manejar CORS preflight
+  if (event.httpMethod === 'OPTIONS') {
+    return {
+      statusCode: 200,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Headers': 'Content-Type',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      },
+      body: '',
+    };
+  }
+
   // Solo permitir métodos POST
   if (event.httpMethod !== 'POST') {
     return {
       statusCode: 405,
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+      },
       body: JSON.stringify({ error: 'Method not allowed' }),
     };
   }
@@ -14,8 +30,13 @@ exports.handler = async (event, context) => {
     const apiKey = process.env.OPENAI_API_KEY;
     
     if (!apiKey) {
+      console.error('OPENAI_API_KEY no está configurada');
       return {
         statusCode: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
         body: JSON.stringify({ 
           error: 'OpenAI API key no configurada. Por favor, configura OPENAI_API_KEY en Netlify.' 
         }),
@@ -23,11 +44,30 @@ exports.handler = async (event, context) => {
     }
 
     // Parsear el cuerpo de la petición
-    const { message, conversationHistory = [] } = JSON.parse(event.body);
+    let body;
+    try {
+      body = JSON.parse(event.body);
+    } catch (e) {
+      console.error('Error al parsear el body:', e);
+      return {
+        statusCode: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+        body: JSON.stringify({ error: 'Formato de petición inválido' }),
+      };
+    }
+
+    const { message, conversationHistory = [] } = body;
 
     if (!message || !message.trim()) {
       return {
         statusCode: 400,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
         body: JSON.stringify({ error: 'El mensaje es requerido' }),
       };
     }
@@ -69,6 +109,10 @@ exports.handler = async (event, context) => {
       
       return {
         statusCode: response.status,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
         body: JSON.stringify({ 
           error: 'Error al comunicarse con OpenAI',
           details: errorData 
@@ -84,6 +128,10 @@ exports.handler = async (event, context) => {
     if (!assistantMessage) {
       return {
         statusCode: 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
         body: JSON.stringify({ error: 'No se recibió respuesta de OpenAI' }),
       };
     }
@@ -104,9 +152,14 @@ exports.handler = async (event, context) => {
 
   } catch (error) {
     console.error('Error en la función:', error);
+    console.error('Stack:', error.stack);
     
     return {
       statusCode: 500,
+      headers: {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+      },
       body: JSON.stringify({ 
         error: 'Error interno del servidor',
         message: error.message 
