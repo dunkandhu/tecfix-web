@@ -118,19 +118,73 @@ exports.handler = async (event, context) => {
     console.log('Enviando petición a Gemini con', contents.length, 'mensajes');
 
     // Llamar a la API de Gemini (capa gratuita)
-    // Usamos gemini-pro que está disponible en v1beta y es gratuito
-    const model = 'gemini-pro'; // Modelo gratuito y estable
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(requestBody),
-    });
+    // Intentamos con diferentes modelos en orden de preferencia
+    const modelsToTry = [
+      'gemini-1.5-flash',  // Modelo más rápido y gratuito
+      'gemini-pro',        // Modelo estándar gratuito
+      'gemini-1.5-pro',    // Modelo más potente (puede tener límites)
+    ];
 
-    console.log('Respuesta de Gemini - Status:', response.status);
+    let response;
+    let lastError;
+    
+    // Intentar con cada modelo hasta que uno funcione
+    for (const model of modelsToTry) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1/models/${model}:generateContent?key=${apiKey}`;
+        console.log(`Intentando con modelo: ${model}`);
+        
+        response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody),
+        });
+
+        console.log(`Respuesta de Gemini (${model}) - Status:`, response.status);
+
+        // Si la respuesta es exitosa, usar este modelo
+        if (response.ok) {
+          console.log(`Modelo ${model} funcionó correctamente`);
+          break;
+        }
+
+        // Si es un error 404, el modelo no existe, probar el siguiente
+        if (response.status === 404) {
+          const errorData = await response.json().catch(() => ({}));
+          lastError = errorData;
+          console.log(`Modelo ${model} no disponible, probando siguiente...`);
+          continue;
+        }
+
+        // Si es otro error, detener y manejar
+        break;
+      } catch (error) {
+        console.error(`Error al intentar con modelo ${model}:`, error);
+        lastError = error;
+        continue;
+      }
+    }
+
+    // Si no se obtuvo respuesta exitosa de ningún modelo
+    if (!response || !response.ok) {
+      const errorData = await response?.json().catch(() => lastError || {});
+      console.error('Error de Gemini - ningún modelo funcionó:', errorData);
+      
+      return {
+        statusCode: response?.status || 500,
+        headers: {
+          'Content-Type': 'application/json',
+          'Access-Control-Allow-Origin': '*',
+        },
+        body: JSON.stringify({ 
+          error: 'No se pudo encontrar un modelo disponible',
+          userMessage: '⚠️ Error: No se encontró un modelo de Gemini disponible. Por favor, verifica tu API key y que tengas acceso a los modelos gratuitos. Revisa los logs de Netlify para más detalles.',
+          details: errorData 
+        }),
+      };
+    }
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
