@@ -1,0 +1,18 @@
+[build]
+  # Directorio base del proyecto
+  base = "."
+  # Comando de build (no necesario para sitio estático, pero lo dejamos por si acaso)
+  command = "echo 'No build needed'"
+  # Directorio de publicación
+  publish = "."
+
+[build.environment]
+  # Variables de entorno se configuran en el dashboard de Netlify
+  # OPENAI_API_KEY se debe configurar en: Site settings > Environment variables
+
+[[redirects]]
+  # Redirigir todas las rutas no encontradas al index.html (SPA behavior)
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
