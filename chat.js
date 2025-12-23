@@ -135,26 +135,20 @@ class ChatWidget {
       if (!response.ok) {
         // Intentar obtener el mensaje de error del servidor
         let errorMessage = `Error ${response.status}`;
+        let userMessage = 'Error al comunicarse con OpenAI. Por favor, intenta de nuevo.';
+        
         try {
           const errorData = await response.json();
+          // Usar el mensaje específico para el usuario si está disponible
+          userMessage = errorData.userMessage || errorData.error || errorData.message || userMessage;
           errorMessage = errorData.error || errorData.message || errorMessage;
           console.error('Error del servidor:', errorData);
         } catch (e) {
           console.error('Error al parsear respuesta de error:', e);
         }
 
-        // Mensajes de error más específicos
-        if (response.status === 500) {
-          if (errorMessage.includes('API key')) {
-            this.addBotMessage('⚠️ La API key de OpenAI no está configurada. Por favor, configura OPENAI_API_KEY en Netlify y redespliega el sitio.');
-          } else {
-            this.addBotMessage('Lo siento, hubo un error en el servidor. Por favor, verifica la configuración en Netlify.');
-          }
-        } else if (response.status === 400) {
-          this.addBotMessage('Por favor, envía un mensaje válido.');
-        } else {
-          this.addBotMessage(`Error: ${errorMessage}. Por favor, intenta de nuevo.`);
-        }
+        // Mostrar el mensaje de error específico
+        this.addBotMessage(userMessage);
         return;
       }
 

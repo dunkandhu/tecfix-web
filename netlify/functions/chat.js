@@ -88,6 +88,16 @@ exports.handler = async (event, context) => {
       }
     ];
 
+    // Preparar la petición a OpenAI
+    const requestBody = {
+      model: 'gpt-3.5-turbo', // Modelo gratuito o de bajo costo
+      messages: messages,
+      max_tokens: 500,
+      temperature: 0.7,
+    };
+
+    console.log('Enviando petición a OpenAI con', messages.length, 'mensajes');
+
     // Llamar a la API de OpenAI
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
@@ -95,17 +105,43 @@ exports.handler = async (event, context) => {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
       },
-      body: JSON.stringify({
-        model: 'gpt-3.5-turbo', // Modelo gratuito o de bajo costo
-        messages: messages,
-        max_tokens: 500,
-        temperature: 0.7,
-      }),
+      body: JSON.stringify(requestBody),
     });
+
+    console.log('Respuesta de OpenAI - Status:', response.status);
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       console.error('Error de OpenAI:', errorData);
+      
+      // Mensajes de error más específicos según el tipo
+      let errorMessage = 'Error al comunicarse con OpenAI';
+      let userMessage = 'Error al comunicarse con OpenAI. Por favor, intenta de nuevo.';
+      
+      if (errorData.error) {
+        const openaiError = errorData.error;
+        
+        // Error de autenticación
+        if (openaiError.code === 'invalid_api_key' || openaiError.message?.includes('api key')) {
+          errorMessage = 'API key inválida o expirada';
+          userMessage = '⚠️ La API key de OpenAI no es válida. Por favor, verifica tu API key en Netlify.';
+        }
+        // Error de créditos
+        else if (openaiError.code === 'insufficient_quota' || openaiError.message?.includes('quota')) {
+          errorMessage = 'Sin créditos disponibles';
+          userMessage = '⚠️ No tienes créditos disponibles en tu cuenta de OpenAI. Por favor, agrega fondos en https://platform.openai.com/account/billing';
+        }
+        // Error de rate limit
+        else if (openaiError.code === 'rate_limit_exceeded') {
+          errorMessage = 'Límite de solicitudes excedido';
+          userMessage = '⚠️ Has excedido el límite de solicitudes. Por favor, espera un momento e intenta de nuevo.';
+        }
+        // Otros errores
+        else {
+          errorMessage = openaiError.message || errorMessage;
+          userMessage = `⚠️ Error: ${openaiError.message || 'Error desconocido'}. Revisa los logs de Netlify para más detalles.`;
+        }
+      }
       
       return {
         statusCode: response.status,
@@ -114,7 +150,8 @@ exports.handler = async (event, context) => {
           'Access-Control-Allow-Origin': '*',
         },
         body: JSON.stringify({ 
-          error: 'Error al comunicarse con OpenAI',
+          error: errorMessage,
+          userMessage: userMessage,
           details: errorData 
         }),
       };
