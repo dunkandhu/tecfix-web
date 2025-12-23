@@ -86,15 +86,16 @@ tecfix-web/
 
 ### Modelo Utilizado
 
-El chat usa **`gemini-1.5-flash`** que es:
+El chat usa **`gemini-pro`** que es:
 - Gratuito
-- Rápido (optimizado para velocidad)
+- Estable y confiable
 - Potente (buena calidad de respuestas)
+- Disponible en la API v1beta
 - Ideal para chatbots
 
-Si quieres cambiar a otro modelo, edita `netlify/functions/chat.js` línea 95:
+Si quieres cambiar a otro modelo, edita `netlify/functions/chat.js` línea 121:
 ```javascript
-const model = 'gemini-1.5-flash'; // Cambia a 'gemini-pro' si prefieres
+const model = 'gemini-pro'; // Modelo gratuito y estable
 ```
 
 ## 🔍 Solución de Problemas
@@ -139,10 +140,12 @@ parts: [{ text: 'Eres un asistente virtual amigable y profesional de TecFix...' 
 
 ### Cambiar el modelo
 
-En `netlify/functions/chat.js`, línea 95:
+En `netlify/functions/chat.js`, línea 121:
 ```javascript
-const model = 'gemini-1.5-flash'; // Cambia a 'gemini-pro' para mejor calidad
+const model = 'gemini-pro'; // Modelo gratuito y estable
 ```
+
+**Nota**: Asegúrate de usar un modelo compatible con la versión v1beta de la API. `gemini-pro` es el modelo recomendado para la capa gratuita.
 
 ### Ajustar parámetros
 

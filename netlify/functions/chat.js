@@ -104,7 +104,7 @@ exports.handler = async (event, context) => {
     });
 
     // Preparar la petición a Gemini
-    // Usamos gemini-1.5-flash que es gratuito y rápido
+    // Usamos gemini-pro que es gratuito y está disponible en v1beta
     const requestBody = {
       contents: contents,
       generationConfig: {
@@ -118,7 +118,8 @@ exports.handler = async (event, context) => {
     console.log('Enviando petición a Gemini con', contents.length, 'mensajes');
 
     // Llamar a la API de Gemini (capa gratuita)
-    const model = 'gemini-1.5-flash'; // Modelo gratuito y rápido
+    // Usamos gemini-pro que está disponible en v1beta y es gratuito
+    const model = 'gemini-pro'; // Modelo gratuito y estable
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
     
     const response = await fetch(url, {

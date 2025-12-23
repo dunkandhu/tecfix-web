@@ -109,7 +109,7 @@ También puedes usar este mismo chat para hacer cualquier pregunta. Estamos aqu�
 - **Tiempo de respuesta**: 2-5 segundos
 - **Límite de solicitudes**: 60 por minuto (gratis)
 - **Límite diario**: 1,500 solicitudes (gratis)
-- **Modelo**: gemini-1.5-flash (rápido y gratuito)
+- **Modelo**: gemini-pro (gratuito y estable)
 
 ## 🐛 Solución de Problemas
 
